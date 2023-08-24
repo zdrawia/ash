@@ -5,6 +5,7 @@ from .log import logger
 class CPU:
     def __init__(self):
         self.register_a:      ctypes.c_uint8  = ctypes.c_uint8(0)
+        self.register_x:      ctypes.c_uint8  = ctypes.c_uint8(0)
         self.status:          ctypes.c_uint8  = ctypes.c_uint8(0)
         self.program_counter: ctypes.c_uint16 = ctypes.c_uint16(0)
 
@@ -37,6 +38,18 @@ class CPU:
                         self.status.value &= 0b1111_1101
 
                     if self.register_a.value & 0b1000_0000 != 0:
+                        self.status.value |= 0b1000_0000
+                    else:
+                        self.status.value &= 0b0111_1111
+                case 0xAA:
+                    self.register_x = self.register_a
+
+                    if self.register_x.value == 0:
+                        self.status.value |= 0b0000_0010
+                    else:
+                        self.status.value &= 0b1111_1101
+
+                    if self.register_x.value & 0b1000_0000 != 0:
                         self.status.value |= 0b1000_0000
                     else:
                         self.status.value &= 0b0111_1111

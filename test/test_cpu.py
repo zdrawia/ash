@@ -15,3 +15,9 @@ class TestCPU(unittest.TestCase):
         cpu = CPU()
         cpu.interpret(to_c_array_uint8([0xA9, 0x00, 0x00]))
         self.assertEqual(cpu.status.value & 0b0000_0010, 0b10)
+
+    def test_0xaa_tax_move_a_to_x(self):
+        cpu = CPU()
+        cpu.register_a.value = 10
+        cpu.interpret(to_c_array_uint8([0xAA, 0x00]))
+        self.assertEqual(cpu.register_x.value, 10)
