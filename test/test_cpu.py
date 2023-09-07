@@ -15,6 +15,12 @@ class TestCPU(unittest.TestCase):
         cpu.load_and_run(bytearray([0xA9, 0x00, 0x00]))
         self.assertEqual(cpu.status & 0b0000_0010, 0b10)
 
+    def test_lda_from_memory(self):
+        cpu = CPU()
+        cpu.memory_write(0x10, 0x55)
+        cpu.load_and_run(bytearray([0xA5, 0x10, 0x00]))
+        self.assertEqual(cpu.register_a, 0x55)
+
     def test_0xaa_tax_move_a_to_x(self):
         cpu = CPU()
         cpu.load_program(bytearray([0xAA, 0x00]))

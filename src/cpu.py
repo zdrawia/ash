@@ -1,5 +1,17 @@
-from .log import logger, historical
+from .log import historical, logger
+from enum import Enum, auto
 
+class AddressingMode(Enum):
+    Immediate      = auto()
+    ZeroPage       = auto()
+    ZeroPage_X     = auto()
+    ZeroPage_Y     = auto()
+    Absolute       = auto()
+    Absolute_X     = auto()
+    Absolute_Y     = auto()
+    Indirect_X     = auto()
+    Indirect_Y     = auto()
+    NoneAddressing = auto()
 
 class CPU:
     """
@@ -27,6 +39,38 @@ class CPU:
         self.status:          int = 0
         self.program_counter: int = 0
         self.memory:          bytearray = bytearray(0xFFFF)
+
+    def get_operand_address(self, mode: AddressingMode) -> int:
+        match mode:
+            case AddressingMode.Immediate:
+                return self.program_counter
+            case AddressingMode.ZeroPage:
+                return self.memory_read(self.program_counter)
+            case AddressingMode.ZeroPage_X:
+                return self.memory_read(self.program_counter) + self.register_x
+            case AddressingMode.ZeroPage_Y:
+                return self.memory_read(self.program_counter) + self.register_y
+            case AddressingMode.Absolute:
+                return self.memory_read_uint16(self.program_counter)
+            case AddressingMode.Absolute_X:
+                return self.memory_read_uint16(self.program_counter) + self.register_x
+            case AddressingMode.Absolute_Y:
+                return self.memory_read_uint16(self.program_counter) + self.register_y
+            case AddressingMode.Indirect_X:
+                base = self.memory_read(self.program_counter)
+                ptr = base + self.register_x
+                lo = self.memory_read(ptr)
+                hi = self.memory_read(ptr + 1)
+                return (hi << 8) | lo
+            case AddressingMode.Indirect_Y:
+                base = self.memory_read(self.program_counter)
+                lo = self.memory_read(base)
+                hi = self.memory_read(base + 1)
+                deref_base = (hi << 8) | lo
+                return deref_base + self.register_y
+            case AddressingMode.NoneAddressing:
+                logger.error(f"Mode {mode} is not supported!")
+                return -0xE7707
 
     def memory_read(self, address: int) -> int:
         return self.memory[address]
@@ -69,10 +113,14 @@ class CPU:
 
             match instruction:
                 case 0xA9:
-                    param = self.memory_read(self.program_counter)
+                    self.lda(AddressingMode.Immediate)
                     self.program_counter += 1
-
-                    self.lda(param)
+                case 0xA5:
+                    self.lda(AddressingMode.ZeroPage)
+                    self.program_counter += 1
+                case 0xAD:
+                    self.lda(AddressingMode.Absolute)
+                    self.program_counter += 2
                 case 0xAA:
                     self.tax()
                 case 0x00:
@@ -81,15 +129,18 @@ class CPU:
                     pass
 
     @historical
-    def lda(self, value: int) -> None:
+    def lda(self, mode: AddressingMode) -> None:
         """
         Loads a byte of memory into the accumulator setting the zero and negative flags as appropriate.
         Args:
-            value: The byte of memory to be loaded
+            mode: The addressing mode
 
         Returns:
             None: This function does not return anything.
         """
+        addr = self.get_operand_address(mode)
+        value = self.memory_read(addr)
+
         self.register_a = value
         self.update_zero_and_negative_flags(self.register_a)
 
