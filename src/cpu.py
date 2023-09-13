@@ -1,4 +1,4 @@
-from .AddressingMode import AddressingMode
+from .addressingmode import AddressingMode
 from .log import historical, logger
 from .opcodes import OPCODES_MAP, Opcode
 from .types import uint8, uint16

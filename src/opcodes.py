@@ -1,6 +1,6 @@
 from dataclasses import dataclass
 
-from src.AddressingMode import AddressingMode
+from src.addressingmode import AddressingMode
 
 
 @dataclass
