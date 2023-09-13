@@ -10,9 +10,10 @@ class CPU:
     |   Flags reference   |
     |_____________________|
     |    |0bxxxx_xxxx|    |
-    |    |  *NVB DIZC|    |
+    |    |  NV1B DIZC|    |
     |    |___________|    |
     |                     |
+    |1 - No CPU effect    |
     |N - Negative Flag    |
     |V - Overflow Flag    |
     |B - Break Command    |
