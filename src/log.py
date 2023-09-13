@@ -15,7 +15,7 @@ logger.addHandler(stream_handler)
 def historical(func):
     def wrapper(*args, **kwargs):
         logger.debug(f"PC: {args[0].program_counter} A: {args[0].register_a} X: {args[0].register_x} Y: {args[0].register_y} P: {args[0].status}")
-        logger.debug(f"Calling: {func.__name__}")
+        logger.debug(f"Calling: {func.__name__} with args: {args[1:]}")
         func(*args, **kwargs)
         logger.debug(f"PC: {args[0].program_counter} A: {args[0].register_a} X: {args[0].register_x} Y: {args[0].register_y} P: {args[0].status}")
     return wrapper

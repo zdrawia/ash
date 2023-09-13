@@ -1,17 +1,8 @@
+from .AddressingMode import AddressingMode
 from .log import historical, logger
-from enum import Enum, auto
+from .opcodes import OPCODES_MAP, Opcode
+from .types import uint8, uint16
 
-class AddressingMode(Enum):
-    Immediate      = auto()
-    ZeroPage       = auto()
-    ZeroPage_X     = auto()
-    ZeroPage_Y     = auto()
-    Absolute       = auto()
-    Absolute_X     = auto()
-    Absolute_Y     = auto()
-    Indirect_X     = auto()
-    Indirect_Y     = auto()
-    NoneAddressing = auto()
 
 class CPU:
     """
@@ -33,73 +24,73 @@ class CPU:
 
     """
     def __init__(self):
-        self.register_a:      int = 0
-        self.register_x:      int = 0
-        self.register_y:      int = 0
-        self.status:          int = 0
-        self.program_counter: int = 0
+        self.register_a:      uint8     = uint8(0)
+        self.register_x:      uint8     = uint8(0)
+        self.register_y:      uint8     = uint8(0)
+        self.status:          uint8     = uint8(0)
+        self.program_counter: uint16    = uint16(0)
         self.memory:          bytearray = bytearray(0xFFFF)
 
-    def get_operand_address(self, mode: AddressingMode) -> int:
+    def get_operand_address(self, mode: AddressingMode) -> uint16:
         match mode:
             case AddressingMode.Immediate:
                 return self.program_counter
             case AddressingMode.ZeroPage:
-                return self.memory_read(self.program_counter)
+                return uint16(self.memory_read(self.program_counter))
             case AddressingMode.ZeroPage_X:
-                return self.memory_read(self.program_counter) + self.register_x
+                return uint16(self.memory_read(self.program_counter) + self.register_x)
             case AddressingMode.ZeroPage_Y:
-                return self.memory_read(self.program_counter) + self.register_y
+                return uint16(self.memory_read(self.program_counter) + self.register_y)
             case AddressingMode.Absolute:
                 return self.memory_read_uint16(self.program_counter)
             case AddressingMode.Absolute_X:
-                return self.memory_read_uint16(self.program_counter) + self.register_x
+                return uint16(self.memory_read_uint16(self.program_counter) + self.register_x)
             case AddressingMode.Absolute_Y:
-                return self.memory_read_uint16(self.program_counter) + self.register_y
+                return uint16(self.memory_read_uint16(self.program_counter) + self.register_y)
             case AddressingMode.Indirect_X:
                 base = self.memory_read(self.program_counter)
                 ptr = base + self.register_x
-                lo = self.memory_read(ptr)
-                hi = self.memory_read(ptr + 1)
-                return (hi << 8) | lo
+                lo = self.memory_read(uint16(ptr))
+                hi = self.memory_read(uint16(ptr + 1))
+                return (uint16(hi) << 8) | uint16(lo)
             case AddressingMode.Indirect_Y:
                 base = self.memory_read(self.program_counter)
-                lo = self.memory_read(base)
-                hi = self.memory_read(base + 1)
-                deref_base = (hi << 8) | lo
-                return deref_base + self.register_y
+                lo = self.memory_read(uint16(base))
+                hi = self.memory_read(uint16(base.increment()))
+                deref_base = (uint16(hi) << 8) | uint16(lo)
+                return uint16(deref_base + self.register_y)
             case AddressingMode.NoneAddressing:
                 logger.error(f"Mode {mode} is not supported!")
-                return -0xE7707
+                return uint16(-0xE7707)
 
-    def memory_read(self, address: int) -> int:
-        return self.memory[address]
+    def memory_read(self, address: uint16) -> uint8:
+        return uint8(self.memory[address])
 
-    def memory_write(self, address: int, data: int) -> None:
+    def memory_write(self, address: uint16, data: uint8) -> None:
         self.memory[address] = data
 
-    def memory_read_uint16(self, position: int) -> int:
-        lo = self.memory_read(position)
-        hi = self.memory_read(position + 1)
+    def memory_read_uint16(self, position: uint16) -> uint16:
+        lo = uint16(self.memory_read(position))
+        hi = uint16(self.memory_read(position.increment()))
         return (hi << 8) | lo
 
-    def memory_write_uint16(self, position: int, data: int) -> None:
-        hi = data >> 8
-        lo = data & 0xFF
+    def memory_write_uint16(self, position: uint16, data: uint16) -> None:
+        hi = data >> uint8(8)
+        lo = data & uint8(0xFF)
         self.memory_write(position, lo)
-        self.memory_write(position + 1, hi)
+        self.memory_write(position.increment(), hi)
 
     @historical
     def reset(self):
-        self.register_a = 0
-        self.register_x = 0
-        self.register_y = 0
-        self.status = 0
-        self.program_counter = self.memory_read_uint16(0xFFFC)
+        self.register_a = uint8(0)
+        self.register_x = uint8(0)
+        self.register_y = uint8(0)
+        self.status = uint8(0)
+        self.program_counter = uint16(self.memory_read_uint16(uint16(0xFFFC)))
 
     def load_program(self, program: bytearray) -> None:
         self.memory[0x8000:0x8000 + len(program)] = program
-        self.memory_write_uint16(0xFFFC, 0x8000)
+        self.memory_write_uint16(uint16(0xFFFC), uint16(0x8000))
 
     def load_and_run(self, program: bytearray, reset: bool = True) -> None:
         self.load_program(program)
@@ -107,26 +98,34 @@ class CPU:
         self.run()
 
     def run(self) -> None:
+        opcodes = OPCODES_MAP
+
         while True:
             instruction = self.memory_read(self.program_counter)
             self.program_counter += 1
+            program_counter_state = self.program_counter
+
+            opcode: Opcode = opcodes.get(instruction, None)
+            if opcode is None:
+                logger.error(f"Unknown opcode {instruction:x}")
+                break
 
             match instruction:
-                case 0xA9:
-                    self.lda(AddressingMode.Immediate)
-                    self.program_counter += 1
-                case 0xA5:
-                    self.lda(AddressingMode.ZeroPage)
-                    self.program_counter += 1
-                case 0xAD:
-                    self.lda(AddressingMode.Absolute)
-                    self.program_counter += 2
+                case 0xA9 | 0xA5 | 0xB5 | 0xAD | 0xBD | 0xB9 | 0xA1 | 0xB1:
+                    self.lda(opcode.mode)
+                case 0x85 | 0x95 | 0x8D | 0x9D | 0x99 | 0x81 | 0x91:
+                    self.sta(opcode.mode)
                 case 0xAA:
                     self.tax()
+                case 0xE8:
+                    self.inx()
                 case 0x00:
                     break
                 case _:
                     pass
+
+            if program_counter_state == self.program_counter:
+                self.program_counter += opcode.len - 1
 
     @historical
     def lda(self, mode: AddressingMode) -> None:
@@ -145,7 +144,7 @@ class CPU:
         self.update_zero_and_negative_flags(self.register_a)
 
     @historical
-    def ldx(self, value: int) -> None:
+    def ldx(self, value: uint8) -> None:
         """
         Loads a byte of memory into the X register setting the zero and negative flags as appropriate.
         Args:
@@ -158,7 +157,7 @@ class CPU:
         self.update_zero_and_negative_flags(self.register_x)
 
     @historical
-    def ldy(self, value: int) -> None:
+    def ldy(self, value: uint8) -> None:
         """
         Loads a byte of memory into the Y register setting the zero and negative flags as appropriate.
         Args:
@@ -193,7 +192,20 @@ class CPU:
         self.register_x += 1
         self.update_zero_and_negative_flags(self.register_x)
 
-    def update_zero_and_negative_flags(self, result: int):
+    @historical
+    def sta(self, mode: AddressingMode) -> None:
+        """
+        Stores the accumulator to memory.
+        Args:
+            mode: The addressing mode
+
+        Returns:
+            None: This function does not return anything.
+        """
+        addr = self.get_operand_address(mode)
+        self.memory_write(addr, self.register_a)
+
+    def update_zero_and_negative_flags(self, result: uint8):
         if result == 0:
             self.status |= 0b0000_0010
         else:
